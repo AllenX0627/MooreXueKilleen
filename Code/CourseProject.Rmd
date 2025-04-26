@@ -1,0 +1,149 @@
+---
+title: "Exploring Water Temp"
+author: "Cammie Moore, Jack Killeen, Shaochong Xue"
+date: "2025-04-04"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+*Link to GitHub repository: *
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(readr)
+library(here)
+library(dataRetrieval)
+library(sf)
+library(mapview)
+library(tidycensus)
+library(tigris)
+options(scipen = 999)
+
+```
+
+```{r census.gov, include=FALSE}
+
+income <- get_acs(
+  geography = "county",
+  variables = c(total_pop = "B01003_001", med_income = "B19013_001", poverty = "B17001_002", employed_mine = "C24030_003", total_employed = "C24030_001", employed_constr = "C24030_005", employed_manu = "C24030_006"), 
+  state = c("NC", "GA", "SC", "TN"),
+  year = 2023,
+  survey = "acs5", # american community survey 5 year
+  geometry = TRUE
+)
+
+income <- income|> #pivot wider to get the data out of the variable column
+  select(!moe)|>
+  pivot_wider(names_from = variable, 
+              values_from = estimate)
+census_tidy <- income|> #finding percentages of values for tidy df
+  mutate(
+    per_pov = (poverty/total_pop)*100,
+    per_industry = ((employed_mine+employed_constr+employed_manu)/total_employed)*100
+  )|>
+  select(GEOID, NAME, total_pop, med_income, per_pov, per_industry)
+# above code got percent poverty rates and percent industry rates for each county. "Industry" is defined as someone reporting on the ACS as working in construction, mining, or manufacturing
+
+```
+
+
+```{r sites reading, include=FALSE}
+sites.df <- read.delim("Data/site_list.txt", comment.char = "#", stringsAsFactors = FALSE) # the dates of this file is from 2025-04-01 to 2025-04-02
+
+sites.df <- renameNWISColumns(sites.df) # renaming
+sites.df$site_no <- as.factor(sites.df$site_no)
+sites.df$Temp_C <- as.numeric(sites.df$Temp_C)
+sites.df <- drop_na(sites.df)
+
+
+
+sites.tidy.df <- sites.df|> #mean water temperature from past seven days for each site
+  group_by(site_no)|>
+  summarise(mean_temp_C = mean(Temp_C, na.rm=TRUE))|> # water temp in degrees Celsius
+  filter(!is.na(mean_temp_C))
+
+list_sites <- as.list(sites.tidy.df$site_no) #list of sites only
+site_info <- readNWISsite(unlist(list_sites)) #geo references for list of sites datum NAD83
+site_info <- site_info |>
+  select(site_no, dec_lat_va, dec_long_va)
+
+sites_geo <- left_join(sites.tidy.df, site_info, by = "site_no") #joining sites
+
+sites.shp <- sites_geo |> 
+  st_as_sf(
+    coords = c('dec_long_va','dec_lat_va'),
+    crs=4326
+    )
+
+```
+
+```{r writing .shp for gauges, eval=FALSE} 
+st_write( # change eval to TRUE the first time running code to write the file
+  sites.shp,
+  here("Data/sites.shp"),
+  driver='ESRI Shapefile',
+  append = FALSE
+  )
+mapview(sites.shp)
+```
+
+
+#### Data Citation
+Oliver, S.K., Appling, A., Watkins, D., Atshan, R., and Read, J., 2024, Compilation of multi-agency water temperature observations for U.S. streams, 1894-2022: U.S. Geological Survey data release, https://doi.org/10.5066/P9EMWZ35.
+
+
+
+```{r exploring mapping rivers and counties, include=FALSE}
+census_tidy.utm <- st_transform(census_tidy, 32617)
+sites.utm <- st_transform(sites.shp, 32617)
+
+rivers_county.plot <- ggplot()+
+  geom_sf(data = census_tidy.utm, aes(fill = per_industry))+
+  geom_sf(data = sites.utm, color = "green")+
+  scale_fill_continuous(low = "red", high = "lightyellow")
+
+rivers_county.plot
+```
+
+```{r flow data}
+flow_data <- readNWISdata(
+  service = "dv",
+  site = sites.tidy.df$site_no,
+  parameterCd = "00060",
+  startDate = "2025-04-10",
+  endDate = "2025-04-17"
+)
+
+flow_data <- renameNWISColumns(flow_data)
+
+flow_tidy <- flow_data %>%
+  group_by(site_no) %>%
+  summarise(mean_flow_cfs = mean(Flow, na.rm = TRUE)) %>%
+  filter(!is.na(mean_flow_cfs))
+
+head(flow_tidy)
+
+```
+
+```{r st join, include=FALSE}
+#st join to get pop, income, pov, industry for each sites
+sites.county <- st_join(sites.utm, nc_tidy.utm)
+head(sites.county)
+```
+
+```{r elevation data}
+# use elevatr package to get elevation data for each sites
+library(elevatr)
+
+elevation_df <- get_elev_point(sites.utm, src = "aws")
+
+# mutate elev data
+sites.utm <- sites.utm |> 
+  mutate(elevation_m = elevation_df$elevation)
+
+head(sites.utm)
+
+```
+

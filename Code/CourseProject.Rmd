@@ -7,9 +7,13 @@ editor_options:
   chunk_output_type: console
 ---
 
-*Link to GitHub repository: *
+*Link to GitHub repository:https://github.com/AllenX0627/MooreXueKilleen.git *
+
+# 0. Set up R environment
 
 ```{r setup, include=FALSE}
+rm(list=ls())
+
 library(tidyverse)
 library(readxl)
 library(readr)
@@ -19,9 +23,14 @@ library(sf)
 library(mapview)
 library(tidycensus)
 library(tigris)
+library(prism)
+library(raster)
+
 options(scipen = 999)
 
 ```
+
+# 1. Get states socioeconomic data
 
 ```{r census.gov, include=FALSE}
 
@@ -48,6 +57,7 @@ census_tidy <- income|> #finding percentages of values for tidy df
 
 ```
 
+# 2. Get water temperature data for sites
 
 ```{r sites reading, include=FALSE}
 sites.df <- read.delim("Data/site_list.txt", comment.char = "#", stringsAsFactors = FALSE) # the dates of this file is from 2025-04-01 to 2025-04-02
@@ -89,12 +99,6 @@ st_write( # change eval to TRUE the first time running code to write the file
 mapview(sites.shp)
 ```
 
-
-#### Data Citation
-Oliver, S.K., Appling, A., Watkins, D., Atshan, R., and Read, J., 2024, Compilation of multi-agency water temperature observations for U.S. streams, 1894-2022: U.S. Geological Survey data release, https://doi.org/10.5066/P9EMWZ35.
-
-
-
 ```{r exploring mapping rivers and counties, include=FALSE}
 census_tidy.utm <- st_transform(census_tidy, 32617)
 sites.utm <- st_transform(sites.shp, 32617)
@@ -107,43 +111,88 @@ rivers_county.plot <- ggplot()+
 rivers_county.plot
 ```
 
+# 3. Get other environmental data for sites
+
 ```{r flow data}
 flow_data <- readNWISdata(
   service = "dv",
   site = sites.tidy.df$site_no,
   parameterCd = "00060",
-  startDate = "2025-04-10",
-  endDate = "2025-04-17"
+  startDate = "2025-04-01",
+  endDate = "2025-04-02"
 )
 
 flow_data <- renameNWISColumns(flow_data)
 
 flow_tidy <- flow_data %>%
   group_by(site_no) %>%
-  summarise(mean_flow_cfs = mean(Flow, na.rm = TRUE)) %>%
-  filter(!is.na(mean_flow_cfs))
+  summarise(mean_flow = mean(Flow, na.rm = TRUE)) %>%
+  filter(!is.na(mean_flow))
 
 head(flow_tidy)
 
 ```
 
-```{r st join, include=FALSE}
-#st join to get pop, income, pov, industry for each sites
-sites.county <- st_join(sites.utm, nc_tidy.utm)
-head(sites.county)
-```
 
 ```{r elevation data}
 # use elevatr package to get elevation data for each sites
 library(elevatr)
 
-elevation_df <- get_elev_point(sites.utm, src = "aws")
+elev.df <- get_elev_point(sites.utm, src = "aws")
+```
 
-# mutate elev data
-sites.utm <- sites.utm |> 
-  mutate(elevation_m = elevation_df$elevation)
+```{r use PRISM package to get air temp data}
+options(prism.path = "Data/PRISM")
 
-head(sites.utm)
+get_prism_dailys(
+  type = "tmean",
+  minDate = "2025-04-01",
+  maxDate = "2025-04-02",
+  keepZip = FALSE
+)
 
 ```
+
+```{r get tmean for each sites}
+# read PRISM raster file
+tmean_0401 <- raster("Data/PRISM/PRISM_tmean_early_4kmD2_20250401_bil/PRISM_tmean_early_4kmD2_20250401_bil.bil")
+tmean_0402 <- raster("Data/PRISM/PRISM_tmean_early_4kmD2_20250402_bil/PRISM_tmean_early_4kmD2_20250402_bil.bil")
+
+# get temp for each sites by coordinate 
+temp_0401 <- raster::extract(tmean_0401, sites.shp)
+temp_0402 <- raster::extract(tmean_0402, sites.shp)
+
+# calculate t mean
+temp_mean <- rowMeans(cbind(temp_0401, temp_0402), na.rm = TRUE)
+temp_mean
+
+```
+
+# 4. Combine data
+
+```{r st join, include=FALSE}
+#st join to get pop, income, pov, industry for each sites
+sites.county <- st_join(sites.utm, census_tidy.utm)
+head(sites.county)
+```
+
+
+```{r combine all data}
+sites.full <- sites.county %>%
+  st_drop_geometry() %>%
+  select(site_no, mean_temp_C, total_pop, med_income, per_pov, per_industry) %>%
+  left_join(flow_tidy, by = "site_no") %>%
+  mutate(elev = elev.df$elevation,
+         mean_t_air = temp_mean
+         ) %>%
+  drop_na()
+  
+head(sites.full) # please use this df for analysis!
+```
+
+
+#### Data Citation
+Oliver, S.K., Appling, A., Watkins, D., Atshan, R., and Read, J., 2024, Compilation of multi-agency water temperature observations for U.S. streams, 1894-2022: U.S. Geological Survey data release, https://doi.org/10.5066/P9EMWZ35.
+
+
 

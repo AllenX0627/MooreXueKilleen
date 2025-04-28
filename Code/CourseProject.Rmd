@@ -25,6 +25,11 @@ library(tidycensus)
 library(tigris)
 library(prism)
 library(raster)
+library(GGally)
+library(dplyr)
+library(car)
+library(ggplot2)
+
 
 options(scipen = 999)
 
@@ -189,6 +194,88 @@ sites.full <- sites.county %>%
   
 head(sites.full) # please use this df for analysis!
 ```
+
+# 5. Linear Regressios
+
+```{r scatter plot matrix}
+sites_scatterplot <- sites.full %>%
+  select(-site_no)
+
+ggpairs(sites_scatterplot, title = "Figure 1: SScatterplot Matrix of Water Temperature and Predictors", axisLabels = "show")
+```
+
+The matrix shows that:
+
+Air temperature is positively correlated with water temperature (r = 0.635).
+
+Elevation is negatively correlated with water temperature (r = -0.646).
+
+Poverty rate shows a weak positive correlation with water temperature (r = 0.247).
+
+Other variables, such as flow, industrial employment percentage, and median income, do not show significant correlations with water temperature. 
+
+Elevation and flow are highly skewed, we applied log transformations to improve linearity for regression.
+
+```{r log transformation}
+sites.full.log <- sites.full %>%
+  mutate(
+    log_flow = log(mean_flow),
+    log_elev = log(elev)
+  )
+head(sites.full.log)
+```
+
+```{r scatter plot matrix 2}
+sites_scatterplot_2 <- sites.full.log %>%
+  select(-site_no, -mean_flow, -elev)
+
+ggpairs(sites_scatterplot_2, title = "Figure 2: SScatterplot Matrix of Water Temperature and Predictors (Log Transformation)", axisLabels = "show")
+```
+
+After applying log transformations to elevation and flow, the overall patterns in the scatterplot matrix did not change much.
+
+```{r linear model}
+model_1 <- lm(mean_temp_C ~ mean_t_air + log_flow + log_elev + per_pov + per_industry + med_income, 
+                 data = sites.full.log)
+summary(model_1)
+```
+
+According to the linear model, air temperature, stream flow, elevation, and poverty rate were significant predictors of water temperature.
+
+Every 1°C increase in air temperature is associated with 0.35°C increased in water temperature (p = 0.0124).
+
+Every 1% increase in the flow is associated with 0.0034°C decrease in water temperature (p = 0.00019).
+
+Every 1% increase in the flow is associated with 0.0092°C decrease in water temperature (p = 0.0055).
+
+Every 1% increase in the poverty rate is associated with 0.18°C increase in water temperature (p = 0.0213).
+
+Industrial employment and median income were not significantly related to water temperature.
+
+The model explained about 48% of the variation in water temperature across our study sites (Adjusted R² = 0.478), suggesting a moderately strong fit.
+
+```{r VIF}
+vif(model_1)
+```
+
+VIF values for all predictors were below 5, indicating no serious multicollinearity concerns in the model.
+
+```{r AIC to select variables}
+model_2 <- step(model_1, direction = "both")
+
+summary(model_2)
+
+```
+
+```{r}
+AIC(model_1, model_2)
+```
+
+We used AIC to select variables, reducing the linear regression model.The final model included air temperature, flow, elevation, and poverty rate as predictors.
+
+The reduced model has a slightly higher Adjusted R² (0.480 vs 0.478) and lower AIC (514 vs 517), indicating a better fit with fewer predictors.
+
+# 6. 
 
 
 #### Data Citation

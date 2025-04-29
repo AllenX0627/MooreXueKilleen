@@ -112,7 +112,7 @@ mytheme <- theme(
 ```
 
 
-```{r exploring mapping rivers and counties, echo=FALSE, fig.cap= "Exploring River Sites and Percentage of Populations in Industry}
+```{r exploring mapping rivers and counties, echo=FALSE, fig.cap= "Exploring River Sites and Percentage of Populations in Industry"}
 census_tidy.utm <- st_transform(census_tidy, 32617)
 sites.utm <- st_transform(sites.shp, 32617)
 

@@ -118,7 +118,7 @@ rivers_county.plot
 
 # 3. Get other environmental data for sites
 
-```{r flow data}
+```{r flow data, include=FALSE}
 flow_data <- readNWISdata(
   service = "dv",
   site = sites.tidy.df$site_no,
@@ -139,14 +139,14 @@ head(flow_tidy)
 ```
 
 
-```{r elevation data}
+```{r elevation data, include=FALSE}
 # use elevatr package to get elevation data for each sites
 library(elevatr)
 
 elev.df <- get_elev_point(sites.utm, src = "aws")
 ```
 
-```{r use PRISM package to get air temp data}
+```{r use PRISM package to get air temp data, include=FALSE}
 options(prism.path = "Data/PRISM")
 
 get_prism_dailys(
@@ -158,7 +158,7 @@ get_prism_dailys(
 
 ```
 
-```{r get tmean for each sites}
+```{r get tmean for each sites, include=FALSE}
 # read PRISM raster file
 tmean_0401 <- raster("Data/PRISM/PRISM_tmean_early_4kmD2_20250401_bil/PRISM_tmean_early_4kmD2_20250401_bil.bil")
 tmean_0402 <- raster("Data/PRISM/PRISM_tmean_early_4kmD2_20250402_bil/PRISM_tmean_early_4kmD2_20250402_bil.bil")
@@ -182,7 +182,7 @@ head(sites.county)
 ```
 
 
-```{r combine all data}
+```{r combine all data, include=FALSE}
 sites.full <- sites.county %>%
   st_drop_geometry() %>%
   select(site_no, mean_temp_C, total_pop, med_income, per_pov, per_industry) %>%
@@ -195,16 +195,67 @@ sites.full <- sites.county %>%
 head(sites.full) # please use this df for analysis!
 ```
 
+```{r data structure table, fig.cap="Table 1. Summary of variables used in the analysis", echo=FALSE}
+library(knitr)
+
+variables_summary <- data.frame(
+  Variable = c(
+    "mean_temp_C", "mean_t_air", "mean_flow", "log_flow",
+    "elevation", "log_elev", "total_pop", "med_income",
+    "per_pov", "per_industry"
+  ),
+  Unit = c(
+    "°C", "°C", "cfs", "log(cfs)", "meters", "log(meters)",
+    "people", "USD", "%", "%"
+  ),
+  Range = c(
+    paste0(round(min(sites.full$mean_temp_C),1), "–", round(max(sites.full$mean_temp_C),1)),
+    paste0(round(min(sites.full$mean_t_air),1), "–", round(max(sites.full$mean_t_air),1)),
+    paste0(round(min(sites.full$mean_flow),1), "–", round(max(sites.full$mean_flow),1)),
+    paste0(round(min(log(sites.full$mean_flow)),1), "–", round(max(log(sites.full$mean_flow)),1)),
+    paste0(round(min(sites.full$elev),1), "–", round(max(sites.full$elev),1)),
+    paste0(round(min(log(sites.full$elev)),1), "–", round(max(log(sites.full$elev)),1)),
+    paste0(round(min(sites.full$total_pop),0), "–", round(max(sites.full$total_pop),0)),
+    paste0(round(min(sites.full$med_income),0), "–", round(max(sites.full$med_income),0)),
+    paste0(round(min(sites.full$per_pov),1), "–", round(max(sites.full$per_pov),1)),
+    paste0(round(min(sites.full$per_industry),1), "–", round(max(sites.full$per_industry),1))
+  ),
+  Mean = c(
+    round(mean(sites.full$mean_temp_C),1),
+    round(mean(sites.full$mean_t_air),1),
+    round(mean(sites.full$mean_flow),1),
+    round(mean(log(sites.full$mean_flow)),1),
+    round(mean(sites.full$elev),1),
+    round(mean(log(sites.full$elev)),1),
+    round(mean(sites.full$total_pop),0),
+    round(mean(sites.full$med_income),0),
+    round(mean(sites.full$per_pov),1),
+    round(mean(sites.full$per_industry),1)
+  ),
+  Source = c(
+    "USGS stream data", "PRISM climate data", "USGS stream data",
+    "Calculated", "AWS Elevation API", "Calculated",
+    "US Census ACS", "US Census ACS", "US Census ACS", "US Census ACS"
+  )
+)
+
+
+kable(variables_summary)
+
+```
+
+
+
 # 5. Linear Regressios
 
-```{r scatter plot matrix}
+```{r scatter_matrix, fig.cap="Figure 1. Scatterplot matrix of water temperature and predictors", echo=FALSE}
 sites_scatterplot <- sites.full %>%
   select(-site_no)
 
-ggpairs(sites_scatterplot, title = "Figure 1: SScatterplot Matrix of Water Temperature and Predictors", axisLabels = "show")
+ggpairs(sites_scatterplot, axisLabels = "show")
 ```
 
-The matrix shows that:
+As shown in Figure.1:
 
 Air temperature is positively correlated with water temperature (r = 0.635).
 
@@ -216,7 +267,7 @@ Other variables, such as flow, industrial employment percentage, and median inco
 
 Elevation and flow are highly skewed, we applied log transformations to improve linearity for regression.
 
-```{r log transformation}
+```{r log transformation, include=FALSE}
 sites.full.log <- sites.full %>%
   mutate(
     log_flow = log(mean_flow),
@@ -225,16 +276,16 @@ sites.full.log <- sites.full %>%
 head(sites.full.log)
 ```
 
-```{r scatter plot matrix 2}
+```{r scatter plot matrix 2, fig.cap="Figure 2. Scatterplot matrix of water temperature and predictors (log transformed)", echo=FALSE}
 sites_scatterplot_2 <- sites.full.log %>%
   select(-site_no, -mean_flow, -elev)
 
-ggpairs(sites_scatterplot_2, title = "Figure 2: SScatterplot Matrix of Water Temperature and Predictors (Log Transformation)", axisLabels = "show")
+ggpairs(sites_scatterplot_2, axisLabels = "show")
 ```
 
-After applying log transformations to elevation and flow, the overall patterns in the scatterplot matrix did not change much.
+AS shown in Figure 2, after applying log transformations to elevation and flow, the overall patterns in the scatterplot matrix did not change much.
 
-```{r linear model}
+```{r linear model, include=FALSE}
 model_1 <- lm(mean_temp_C ~ mean_t_air + log_flow + log_elev + per_pov + per_industry + med_income, 
                  data = sites.full.log)
 summary(model_1)
@@ -254,20 +305,20 @@ Industrial employment and median income were not significantly related to water 
 
 The model explained about 48% of the variation in water temperature across our study sites (Adjusted R² = 0.478), suggesting a moderately strong fit.
 
-```{r VIF}
+```{r VIF, include=FALSE}
 vif(model_1)
 ```
 
 VIF values for all predictors were below 5, indicating no serious multicollinearity concerns in the model.
 
-```{r AIC to select variables}
+```{r AIC to select variables, include=FALSE}
 model_2 <- step(model_1, direction = "both")
 
 summary(model_2)
 
 ```
 
-```{r AIC comparison}
+```{r AIC comparison, include=FALSE}
 AIC(model_1, model_2)
 ```
 
@@ -282,7 +333,7 @@ Based on the U.S. Census Bureau (2023) report, the median household income in th
 Therefore, to further explore the relationship between income levels and water temperature, we classified our data into two groups: "High Income" (median income ≥ 74.580) and "Low Income" (median income < 74.580).
 
 
-```{r create income groups}
+```{r create income groups, include=FALSE}
 sites.full.t <- sites.full.log %>%
   mutate(income_group = ifelse(med_income < 74580, "Low", "High")) %>%
   mutate(income_group = factor(income_group))
@@ -290,16 +341,15 @@ sites.full.t <- sites.full.log %>%
 head(sites.full.t)
 ```
 
-```{r boxplot}
+```{r boxplot, fig.cap="Figure 3: Stream Water Temperature by Income Group",  echo=FALSE}
 boxplot(mean_temp_C ~ income_group,
         data = sites.full.t,
-        main = "Figure 3: Stream Water Temperature by Income Group",
         xlab = "Income Group",
         ylab = "Mean Water Temperature (°C)",
         col = c("navy", "orange"))
 ```
 
-```{r normality test}
+```{r normality test, include=FALSE}
 shapiro.test(sites.full.t$mean_temp_C[sites.full.t$income_group == "Low"])
 shapiro.test(sites.full.t$mean_temp_C[sites.full.t$income_group == "High"])
 
@@ -307,11 +357,25 @@ shapiro.test(sites.full.t$mean_temp_C[sites.full.t$income_group == "High"])
 
 Based on the Shapiro-Wilk test results, water temperature data for the high income group significantly deviates from a normal distribution. Therefore, we used the Wilcoxon test to compare water temperatures between the two income groups.
 
-```{r wilcoxon difference test}
+```{r wilcoxon difference test, include=FALSE}
 wilcox.test(mean_temp_C ~ income_group, data = sites.full.t)
 ```
 
 The result of Wilcoxon test was not statistically significant (p = 0.903), indicating that water temperature did not differ significantly between high-income and low-income sites.
+
+# 7. Summary and Conclusions
+
+Our analysis shows that air temperature, elevation, stream flow, and poverty rate are significant predictors of river water temperature in the southeastern United States. Specifically, water temperature increases with higher air temperature and poverty rate, and decreases with higher elevation and stream flow. However, when comparing sites grouped by income level, no statistically significant difference in water temperature was found.
+
+While industrial activity is commonly associated with thermal pollution and elevated air temperatures, our study did not find its significant relationship with water temperature. This may be due to several reasons:
+
+1. The industrial employment variable used was broad and may not reflect actual thermal discharges.
+
+2. Most sites likely comply with environmental regulations that limit heated water discharge.
+
+3. Stream temperature is strongly influenced by physical factors such as air temperature and elevation, which may overshadow weaker socioeconomic effects.
+
+This study has several limitations. In the linear regression models, dominant environmental variables such as air temperature and elevation may obscure the effects of socioeconomic factors. Additionally, high-elevation or mountainous regions often tend to be lower-income, introducing potential multicollinearity among predictors. These relationships should be examined more carefully in future work, ideally with larger datasets and methods accounting for spatial dependence.
 
 
 #### Data Citation

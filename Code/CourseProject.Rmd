@@ -267,7 +267,7 @@ summary(model_2)
 
 ```
 
-```{r}
+```{r AIC comparison}
 AIC(model_1, model_2)
 ```
 
@@ -275,7 +275,43 @@ We used AIC to select variables, reducing the linear regression model.The final 
 
 The reduced model has a slightly higher Adjusted R² (0.480 vs 0.478) and lower AIC (514 vs 517), indicating a better fit with fewer predictors.
 
-# 6. 
+# 6. Difference Test
+
+Based on the U.S. Census Bureau (2023) report, the median household income in the United States was $74.580.
+
+Therefore, to further explore the relationship between income levels and water temperature, we classified our data into two groups: "High Income" (median income ≥ 74.580) and "Low Income" (median income < 74.580).
+
+
+```{r create income groups}
+sites.full.t <- sites.full.log %>%
+  mutate(income_group = ifelse(med_income < 74580, "Low", "High")) %>%
+  mutate(income_group = factor(income_group))
+
+head(sites.full.t)
+```
+
+```{r boxplot}
+boxplot(mean_temp_C ~ income_group,
+        data = sites.full.t,
+        main = "Figure 3: Stream Water Temperature by Income Group",
+        xlab = "Income Group",
+        ylab = "Mean Water Temperature (°C)",
+        col = c("navy", "orange"))
+```
+
+```{r normality test}
+shapiro.test(sites.full.t$mean_temp_C[sites.full.t$income_group == "Low"])
+shapiro.test(sites.full.t$mean_temp_C[sites.full.t$income_group == "High"])
+
+```
+
+Based on the Shapiro-Wilk test results, water temperature data for the high income group significantly deviates from a normal distribution. Therefore, we used the Wilcoxon test to compare water temperatures between the two income groups.
+
+```{r wilcoxon difference test}
+wilcox.test(mean_temp_C ~ income_group, data = sites.full.t)
+```
+
+The result of Wilcoxon test was not statistically significant (p = 0.903), indicating that water temperature did not differ significantly between high-income and low-income sites.
 
 
 #### Data Citation

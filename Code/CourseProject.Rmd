@@ -1,5 +1,5 @@
 ---
-title: "Exploring Water Temp"
+title: "Exploring Relationships of Various Factors Associated with Water Temperature."
 author: "Cammie Moore, Jack Killeen, Shaochong Xue"
 date: "2025-04-04"
 output: html_document
@@ -9,9 +9,8 @@ editor_options:
 
 *Link to GitHub repository:https://github.com/AllenX0627/MooreXueKilleen.git *
 
-# 0. Set up R environment
 
-```{r setup, include=FALSE}
+```{r # 0. Set up R environment setup, include=FALSE}
 rm(list=ls())
 
 library(tidyverse)
@@ -34,9 +33,9 @@ options(scipen = 999)
 
 ```
 
-# 1. Get states socioeconomic data
 
-```{r census.gov, include=FALSE}
+
+```{r # 1. Get states socioeconomic data census.gov, include=FALSE}
 
 income <- get_acs(
   geography = "county",
@@ -61,9 +60,9 @@ census_tidy <- income|> #finding percentages of values for tidy df
 
 ```
 
-# 2. Get water temperature data for sites
 
-```{r sites reading, include=FALSE}
+
+```{r # 2. Get water temperature data for sites sites reading, include=FALSE}
 sites.df <- read.delim("Data/site_list.txt", comment.char = "#", stringsAsFactors = FALSE) # the dates of this file is from 2025-04-01 to 2025-04-02
 
 sites.df <- renameNWISColumns(sites.df) # renaming
@@ -93,7 +92,7 @@ sites.shp <- sites_geo |>
 
 ```
 
-```{r writing .shp for gauges, eval=FALSE} 
+```{r writing .shp for gauges, eval=FALSE, include=FALSE} 
 st_write( # change eval to TRUE the first time running code to write the file
   sites.shp,
   here("Data/sites.shp"),
@@ -103,21 +102,32 @@ st_write( # change eval to TRUE the first time running code to write the file
 mapview(sites.shp)
 ```
 
-```{r exploring mapping rivers and counties, include=FALSE}
+### Exploring Data
+
+```{r setting graph themes, include=FALSE}
+mytheme <- theme(
+  legend.title = element_text(size = 11),
+  legend.position = "bottom"
+)
+```
+
+
+```{r exploring mapping rivers and counties, echo=FALSE, fig.cap= "Exploring River Sites and Percentage of Populations in Industry}
 census_tidy.utm <- st_transform(census_tidy, 32617)
 sites.utm <- st_transform(sites.shp, 32617)
 
 rivers_county.plot <- ggplot()+
   geom_sf(data = census_tidy.utm, aes(fill = per_industry))+
-  geom_sf(data = sites.utm, color = "green")+
-  scale_fill_continuous(low = "red", high = "lightyellow")
+  geom_sf(data = sites.utm, aes(color = "River Temperature Sites (C)"))+
+  scale_color_manual(name = NULL, values = c("River Temperature Sites (C)" = "blue"))+
+  scale_fill_continuous(low = "red", high = "lightyellow", name="Percentage of Employed Persons in Industry", text )+
+  mytheme
 
 rivers_county.plot
 ```
+As shown in exploratory Figure 1, there are varying degrees of industry (defined as employment in construction, manufacturing, or mining) across Georgia, North Carolina, South Carolina, and Tennessee. There appears to be a concentration of river gauges in northern Georgia near Atlanta. There may be spatial autocorrelation to take into consideration due to this concentration of data.
 
-# 3. Get other environmental data for sites
-
-```{r flow data, include=FALSE}
+```{r # 3. Get other environmental data for sites flow data, include=FALSE}
 flow_data <- readNWISdata(
   service = "dv",
   site = sites.tidy.df$site_no,
@@ -172,9 +182,8 @@ temp_mean
 
 ```
 
-# 4. Combine data
 
-```{r st join, include=FALSE}
+```{r # 4. Combine data st join, include=FALSE}
 #st join to get pop, income, pov, industry for each sites
 sites.county <- st_join(sites.utm, census_tidy.utm)
 head(sites.county)
@@ -244,17 +253,17 @@ kable(variables_summary)
 ```
 
 
+### Linear Regressions
 
+```{r scatter_matrix, fig.cap="Figure 2. Scatterplot matrix of water temperature and predictors", echo=FALSE}
 # 5. Linear Regressios
-
-```{r scatter_matrix, fig.cap="Figure 1. Scatterplot matrix of water temperature and predictors", echo=FALSE}
 sites_scatterplot <- sites.full %>%
   dplyr::select(-site_no)
 
 ggpairs(sites_scatterplot, axisLabels = "show")
 ```
 
-As shown in Figure.1:
+As shown in Figure.2:
 
 Air temperature is positively correlated with water temperature (r = 0.635).
 
@@ -275,14 +284,14 @@ sites.full.log <- sites.full %>%
 head(sites.full.log)
 ```
 
-```{r scatter plot matrix 2, fig.cap="Figure 2. Scatterplot matrix of water temperature and predictors (log transformed)", echo=FALSE}
+```{r scatter plot matrix 2, fig.cap="Figure 3. Scatterplot matrix of water temperature and predictors (log transformed)", echo=FALSE}
 sites_scatterplot_2 <- sites.full.log %>%
   dplyr::select(-site_no, -mean_flow, -elev)
 
 ggpairs(sites_scatterplot_2, axisLabels = "show")
 ```
 
-AS shown in Figure 2, after applying log transformations to elevation and flow, the overall patterns in the scatterplot matrix did not change much.
+AS shown in Figure 3, after applying log transformations to elevation and flow, the overall patterns in the scatterplot matrix did not change much.
 
 ```{r linear model, include=FALSE}
 model_1 <- lm(mean_temp_C ~ mean_t_air + log_flow + log_elev + per_pov + per_industry + med_income, 
@@ -325,7 +334,7 @@ We used AIC to select variables, reducing the linear regression model.The final 
 
 The reduced model has a slightly higher Adjusted R² (0.480 vs 0.478) and lower AIC (514 vs 517), indicating a better fit with fewer predictors.
 
-# 6. Difference Test
+### Difference Test
 
 Based on the U.S. Census Bureau (2023) report, the median household income in the United States was $74.580.
 
@@ -340,7 +349,7 @@ sites.full.t <- sites.full.log %>%
 head(sites.full.t)
 ```
 
-```{r boxplot, fig.cap="Figure 3: Stream Water Temperature by Income Group",  echo=FALSE}
+```{r boxplot, fig.cap="Figure 4: Stream Water Temperature by Income Group",  echo=FALSE}
 boxplot(mean_temp_C ~ income_group,
         data = sites.full.t,
         xlab = "Income Group",
@@ -362,7 +371,7 @@ wilcox.test(mean_temp_C ~ income_group, data = sites.full.t)
 
 The result of Wilcoxon test was not statistically significant (p = 0.903), indicating that water temperature did not differ significantly between high-income and low-income sites.
 
-# 7. Summary and Conclusions
+### Summary and Conclusions
 
 Our analysis shows that air temperature, elevation, stream flow, and poverty rate are significant predictors of river water temperature in the southeastern United States. Specifically, water temperature increases with higher air temperature and poverty rate, and decreases with higher elevation and stream flow. However, when comparing sites grouped by income level, no statistically significant difference in water temperature was found.
 

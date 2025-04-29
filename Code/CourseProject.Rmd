@@ -26,7 +26,6 @@ library(tigris)
 library(prism)
 library(raster)
 library(GGally)
-library(dplyr)
 library(car)
 library(ggplot2)
 
@@ -49,7 +48,7 @@ income <- get_acs(
 )
 
 income <- income|> #pivot wider to get the data out of the variable column
-  select(!moe)|>
+  dplyr::select(!moe)|>
   pivot_wider(names_from = variable, 
               values_from = estimate)
 census_tidy <- income|> #finding percentages of values for tidy df
@@ -57,7 +56,7 @@ census_tidy <- income|> #finding percentages of values for tidy df
     per_pov = (poverty/total_pop)*100,
     per_industry = ((employed_mine+employed_constr+employed_manu)/total_employed)*100
   )|>
-  select(GEOID, NAME, total_pop, med_income, per_pov, per_industry)
+  dplyr::select(GEOID, NAME, total_pop, med_income, per_pov, per_industry)
 # above code got percent poverty rates and percent industry rates for each county. "Industry" is defined as someone reporting on the ACS as working in construction, mining, or manufacturing
 
 ```
@@ -82,7 +81,7 @@ sites.tidy.df <- sites.df|> #mean water temperature from past seven days for eac
 list_sites <- as.list(sites.tidy.df$site_no) #list of sites only
 site_info <- readNWISsite(unlist(list_sites)) #geo references for list of sites datum NAD83
 site_info <- site_info |>
-  select(site_no, dec_lat_va, dec_long_va)
+  dplyr::select(site_no, dec_lat_va, dec_long_va)
 
 sites_geo <- left_join(sites.tidy.df, site_info, by = "site_no") #joining sites
 
@@ -185,7 +184,7 @@ head(sites.county)
 ```{r combine all data, include=FALSE}
 sites.full <- sites.county %>%
   st_drop_geometry() %>%
-  select(site_no, mean_temp_C, total_pop, med_income, per_pov, per_industry) %>%
+  dplyr::select(site_no, mean_temp_C, total_pop, med_income, per_pov, per_industry) %>%
   left_join(flow_tidy, by = "site_no") %>%
   mutate(elev = elev.df$elevation,
          mean_t_air = temp_mean
@@ -250,7 +249,7 @@ kable(variables_summary)
 
 ```{r scatter_matrix, fig.cap="Figure 1. Scatterplot matrix of water temperature and predictors", echo=FALSE}
 sites_scatterplot <- sites.full %>%
-  select(-site_no)
+  dplyr::select(-site_no)
 
 ggpairs(sites_scatterplot, axisLabels = "show")
 ```
@@ -278,7 +277,7 @@ head(sites.full.log)
 
 ```{r scatter plot matrix 2, fig.cap="Figure 2. Scatterplot matrix of water temperature and predictors (log transformed)", echo=FALSE}
 sites_scatterplot_2 <- sites.full.log %>%
-  select(-site_no, -mean_flow, -elev)
+  dplyr::select(-site_no, -mean_flow, -elev)
 
 ggpairs(sites_scatterplot_2, axisLabels = "show")
 ```

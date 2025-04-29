@@ -1,5 +1,5 @@
 ---
-title: "Exploring Relationships of Various Factors Associated with Water Temperature."
+title: "Exploring Relationships of Physical and Socioeconomic Facots Associated with Water Temperature."
 author: "Cammie Moore, Jack Killeen, Shaochong Xue"
 date: "2025-04-04"
 output: html_document
@@ -27,6 +27,7 @@ library(raster)
 library(GGally)
 library(car)
 library(ggplot2)
+library(kableExtra)
 
 
 options(scipen = 999)
@@ -102,6 +103,10 @@ st_write( # change eval to TRUE the first time running code to write the file
 mapview(sites.shp)
 ```
 
+### Research Question
+How is stream water temperature related to physical and socioeconomic factors such elevation, income, and concentration of heavy industry?
+
+
 ### Exploring Data
 
 ```{r setting graph themes, include=FALSE}
@@ -110,9 +115,9 @@ mytheme <- theme(
   legend.position = "bottom"
 )
 ```
+Census data was collected from the 2023 ACS 5-year community survey. Socioeconomic factors such as median income, employment, and total population were analyzed to explore their potential relationship with water temperatures recorded at various USGS gauges across North Carolina, Tennessee, South Carolina, and Georgia. Water temperature data were collected from April 1st to April 2nd and averaged to obtain the mean temperature (in Celsius) for that period.
 
-
-```{r exploring mapping rivers and counties, echo=FALSE, fig.cap= "Exploring River Sites and Percentage of Populations in Industry"}
+```{r exploring mapping rivers and counties, echo=FALSE, fig.cap= "Figure 1. Exploring River Sites and Percentage of Populations in Industry"}
 census_tidy.utm <- st_transform(census_tidy, 32617)
 sites.utm <- st_transform(sites.shp, 32617)
 
@@ -203,8 +208,11 @@ sites.full <- sites.county %>%
 head(sites.full) # please use this df for analysis!
 ```
 
-```{r data structure table, fig.cap="Table 1. Summary of variables used in the analysis", echo=FALSE}
+### Data Structure Table
+
+```{r data structure table, fig.cap= "Table 1. Summary of variables used in the analysis", echo=FALSE}
 library(knitr)
+
 
 variables_summary <- data.frame(
   Variable = c(
@@ -248,7 +256,7 @@ variables_summary <- data.frame(
 )
 
 
-kable(variables_summary)
+kable(variables_summary, caption = "Table 1. Summary of Variables Used in the Analysis") 
 
 ```
 

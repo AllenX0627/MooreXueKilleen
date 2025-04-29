@@ -260,11 +260,65 @@ kable(variables_summary, caption = "Table 1. Summary of Variables Used in the An
 
 ```
 
+### Summary Statistics
+
+```{r}
+# Basic summary for all numeric variables (excluding site ID)
+summary_stats <- sites.full %>%
+  dplyr::select(-site_no) %>%
+  summary()
+
+# Grouped summary statistics by income group
+group_summary <- sites.full.t %>%
+  group_by(income_group) %>%
+  summarise(across(
+    c(mean_temp_C, mean_t_air, log_flow, log_elev, per_pov, per_industry),
+    list(mean = mean, sd = sd),
+    .names = "{.col}_{.fn}"
+  )) %>%
+  ungroup()
+
+# Print the grouped summary table
+kable(group_summary, caption = "Table 2. Summary Statistics by Income Group") %>%
+  kable_styling(full_width = FALSE)
+```
+
+### Data Visualizations
+
+```{r}
+sites.full.t %>%
+  ggplot(aes(x = mean_temp_C, fill = income_group)) +
+  geom_density(alpha = 0.5) +
+  theme_minimal() +
+  labs(title = "Water Temperature Density by Income Group", x = "Mean Water Temperature (°C)", y = "Density") +
+  scale_fill_manual(values = c("Low" = "navy", "High" = "orange"))
+
+ggplot(sites.full, aes(x = mean_temp_C)) +
+  geom_histogram(bins = 25, fill = "lightblue", color = "black") +
+  theme_minimal() +
+  labs(
+    title = "Distribution of Stream Water Temperature",
+    x = "Mean Water Temperature (°C)",
+    y = "Count"
+  )
+
+ggplot(sites.full, aes(x = elev)) +
+  geom_histogram(bins = 25, fill = "lightgreen", color = "black") +
+  theme_minimal() +
+  labs(
+    title = "Distribution of Site Elevations",
+    x = "Elevation (meters)",
+    y = "Count"
+  )
+
+mapview(sites.shp, zcol = "mean_temp_C", legend = TRUE)
+```
+
 
 ### Linear Regressions
 
 ```{r scatter_matrix, fig.cap="Figure 2. Scatterplot matrix of water temperature and predictors", echo=FALSE}
-# 5. Linear Regressios
+# 5. Linear Regressions
 sites_scatterplot <- sites.full %>%
   dplyr::select(-site_no)
 
